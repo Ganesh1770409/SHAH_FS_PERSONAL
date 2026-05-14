@@ -1,10 +1,20 @@
-from flask import Blueprint, flash, redirect, render_template, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, url_for
 from flask_login import current_user, login_required
 
 from app.extensions import db
 from app.forms import ProfileForm
+from app.models import User
 
 bp = Blueprint("main", __name__)
+
+
+def _db_kind() -> str:
+    uri = (current_app.config.get("SQLALCHEMY_DATABASE_URI") or "").lower()
+    if uri.startswith("sqlite"):
+        return "SQLite"
+    if uri.startswith("postgresql"):
+        return "PostgreSQL"
+    return "SQL"
 
 
 @bp.route("/")
@@ -28,6 +38,16 @@ def dashboard():
         stats={"total": total, "pending": pending, "approved": approved, "repaid": repaid},
         recent_loans=recent,
     )
+
+
+@bp.route("/admin/users")
+@login_required
+def admin_users():
+    """List users from the live DB (admin only). Use on Render to confirm signups hit Postgres."""
+    if not current_user.is_admin:
+        abort(403)
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template("admin/users.html", users=users, db_kind=_db_kind())
 
 
 @bp.route("/profile", methods=["GET", "POST"])
