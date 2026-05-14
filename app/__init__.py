@@ -19,8 +19,8 @@ def create_app(config_class=Config):
         if uri.startswith("sqlite:"):
             app.logger.error(
                 "Render: DATABASE_URL is not set; using SQLite on the instance disk. "
-                "That file is wiped on redeploy—create a Render PostgreSQL database, "
-                "link it to this Web Service, and redeploy so DATABASE_URL is injected."
+                "That file is wiped on redeploy—add a managed database (e.g. MySQL or "
+                "PostgreSQL), set DATABASE_URL on this Web Service, and redeploy."
             )
 
     db.init_app(app)

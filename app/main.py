@@ -12,6 +12,8 @@ def _db_kind() -> str:
     uri = (current_app.config.get("SQLALCHEMY_DATABASE_URI") or "").lower()
     if uri.startswith("sqlite"):
         return "SQLite"
+    if "mysql" in uri:
+        return "MySQL"
     if uri.startswith("postgresql"):
         return "PostgreSQL"
     return "SQL"
