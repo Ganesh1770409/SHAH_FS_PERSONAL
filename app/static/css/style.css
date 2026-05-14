@@ -1,0 +1,28 @@
+body {
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+.navbar-brand {
+  letter-spacing: -0.02em;
+}
+
+.card {
+  border-radius: 0.5rem;
+}
+
+.table > :not(caption) > * > * {
+  padding: 0.75rem 1rem;
+}
+
+.hero-photo img {
+  min-height: 100%;
+}
+
+.auth-side-visual {
+  min-height: 28rem;
+}
+
+.auth-side-visual img {
+  object-fit: cover;
+  min-height: 28rem;
+}

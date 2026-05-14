@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Applications — SHAH FINANCIAL HEALTH SERVICES{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <h1 class="h3 mb-0">Loan applications</h1>
+  <a class="btn btn-primary" href="{{ url_for('loans.new_loan') }}">New application</a>
+</div>
+<div class="mb-3 d-flex flex-wrap gap-2">
+  <a class="btn btn-sm {% if not filter_status %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('loans.list_loans') }}">All</a>
+  {% for s in ['pending','approved','disbursed','repaid','rejected'] %}
+  <a class="btn btn-sm {% if filter_status == s %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('loans.list_loans', status=s) }}">{{ s }}</a>
+  {% endfor %}
+</div>
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Date</th>
+          <th>Patient</th>
+          <th>Hospital</th>
+          <th>Requested</th>
+          <th>Approved</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for loan in loans %}
+        <tr>
+          <td class="text-secondary small">{{ loan.created_at.strftime('%Y-%m-%d') }}</td>
+          <td>{{ loan.patient_name }}</td>
+          <td>{{ loan.hospital_name }}</td>
+          <td>{{ loan.amount_requested }}</td>
+          <td>{% if loan.amount_approved is not none %}{{ loan.amount_approved }}{% else %}—{% endif %}</td>
+          <td><span class="badge text-bg-secondary text-uppercase">{{ loan.status }}</span></td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('loans.loan_detail', loan_id=loan.id) }}">View</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-5">No applications match this filter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

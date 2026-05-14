@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Home — SHAH FINANCIAL HEALTH SERVICES{% endblock %}
+{% block content %}
+<div class="row align-items-stretch g-4 py-lg-4">
+  <div class="col-lg-6 d-flex flex-column justify-content-center">
+    <p class="text-uppercase text-primary fw-semibold small mb-2">SHAH FINANCIAL HEALTH SERVICES</p>
+    <h1 class="display-5 fw-bold mb-3">Support patients when they need it most</h1>
+    <p class="lead text-secondary mb-4">
+      SHAH FINANCIAL HEALTH SERVICES helps your team record requests from hospitals, track approvals and disbursements,
+      and follow repayments in one simple workspace.
+    </p>
+    {% if not current_user.is_authenticated %}
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-primary btn-lg" href="{{ url_for('auth.signup') }}">Create account</a>
+      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('auth.login') }}">Sign in</a>
+    </div>
+    {% else %}
+    <a class="btn btn-primary btn-lg" href="{{ url_for('main.dashboard') }}">Open dashboard</a>
+    {% endif %}
+  </div>
+  <div class="col-lg-6">
+    <div class="hero-photo rounded-4 overflow-hidden shadow ratio ratio-4x3">
+      <img
+        src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&amp;fit=crop&amp;w=1200&amp;q=80"
+        alt="Modern hospital interior"
+        class="w-100 h-100 object-fit-cover"
+        loading="eager"
+        decoding="async"
+        referrerpolicy="no-referrer-when-downgrade">
+    </div>
+    <p class="small text-muted mt-2 mb-0">Photo: hospital environment — Unsplash</p>
+  </div>
+</div>
+
+<div class="row g-4 mb-5">
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm overflow-hidden h-100">
+      <div class="ratio ratio-21x9">
+        <img
+          src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&amp;fit=crop&amp;w=1200&amp;q=80"
+          alt="Healthcare professional with patient"
+          class="w-100 h-100 object-fit-cover"
+          loading="lazy"
+          decoding="async"
+          referrerpolicy="no-referrer-when-downgrade">
+      </div>
+      <div class="card-body p-4">
+        <h2 class="h5 mb-2">Care at the bedside</h2>
+        <p class="text-secondary small mb-0">Document each case with hospital context so funds reach the right people at the right time.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm overflow-hidden h-100">
+      <div class="ratio ratio-21x9">
+        <img
+          src="https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&amp;fit=crop&amp;w=1200&amp;q=80"
+          alt="Hospital care and monitoring"
+          class="w-100 h-100 object-fit-cover"
+          loading="lazy"
+          decoding="async"
+          referrerpolicy="no-referrer-when-downgrade">
+      </div>
+      <div class="card-body p-4">
+        <h2 class="h5 mb-2">Typical workflow</h2>
+        <ol class="mb-0 text-secondary small ps-3">
+          <li class="mb-2">Hospital or family contact submits a case with medical context and amount.</li>
+          <li class="mb-2">Your team reviews and sets approved amount and status.</li>
+          <li>After funds go out, log repayments until the case is closed.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

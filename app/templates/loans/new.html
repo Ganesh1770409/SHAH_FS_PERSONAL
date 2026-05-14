@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}New application — SHAH FINANCIAL HEALTH SERVICES{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">New hospital case</h1>
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <form method="post">
+          {{ form.hidden_tag() }}
+          <div class="row g-3">
+            <div class="col-md-6">
+              {{ form.patient_name.label(class="form-label") }}
+              {{ form.patient_name(class="form-control") }}
+              {% for e in form.patient_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-md-6">
+              {{ form.hospital_name.label(class="form-label") }}
+              {{ form.hospital_name(class="form-control") }}
+            </div>
+            <div class="col-md-6">
+              {{ form.ward_or_unit.label(class="form-label") }}
+              {{ form.ward_or_unit(class="form-control") }}
+            </div>
+            <div class="col-md-6">
+              {{ form.contact_person.label(class="form-label") }}
+              {{ form.contact_person(class="form-control") }}
+            </div>
+            <div class="col-md-6">
+              {{ form.contact_phone.label(class="form-label") }}
+              {{ form.contact_phone(class="form-control") }}
+            </div>
+            <div class="col-md-6">
+              {{ form.amount_requested.label(class="form-label") }}
+              {{ form.amount_requested(class="form-control") }}
+            </div>
+            <div class="col-12">
+              {{ form.medical_summary.label(class="form-label") }}
+              {{ form.medical_summary(class="form-control", rows=5) }}
+              {% for e in form.medical_summary.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            {{ form.submit(class="btn btn-primary") }}
+            <a class="btn btn-outline-secondary" href="{{ url_for('loans.list_loans') }}">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — SHAH FINANCIAL HEALTH SERVICES{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">Dashboard</h1>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">All cases</div>
+        <div class="fs-3 fw-bold">{{ stats.total }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Pending</div>
+        <div class="fs-3 fw-bold text-warning">{{ stats.pending }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Approved / active</div>
+        <div class="fs-3 fw-bold text-success">{{ stats.approved }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Repaid</div>
+        <div class="fs-3 fw-bold text-primary">{{ stats.repaid }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h5 mb-0">Recent applications</h2>
+  <a class="btn btn-sm btn-primary" href="{{ url_for('loans.new_loan') }}">New application</a>
+</div>
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Patient</th>
+          <th>Hospital</th>
+          <th>Requested</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for loan in recent_loans %}
+        <tr>
+          <td>{{ loan.patient_name }}</td>
+          <td class="text-secondary">{{ loan.hospital_name }}</td>
+          <td>{{ loan.amount_requested }}</td>
+          <td><span class="badge bg-secondary text-uppercase">{{ loan.status }}</span></td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('loans.loan_detail', loan_id=loan.id) }}">Open</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No applications yet. <a href="{{ url_for('loans.new_loan') }}">Create the first one</a>.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

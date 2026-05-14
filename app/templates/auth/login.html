@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Sign in — SHAH FINANCIAL HEALTH SERVICES{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-xl-10">
+    <div class="card border-0 shadow-sm overflow-hidden">
+      <div class="row g-0">
+        <div class="col-lg-5">
+          <div class="p-4 p-md-5 h-100 d-flex flex-column justify-content-center">
+            <p class="text-uppercase text-primary fw-bold small mb-1" style="letter-spacing:0.06em;">SHAH FINANCIAL HEALTH SERVICES</p>
+            <h1 class="h4 mb-4">Sign in</h1>
+            <form method="post">
+              {{ form.hidden_tag() }}
+              <div class="mb-3">
+                {{ form.email.label(class="form-label") }}
+                {{ form.email(class="form-control") }}
+                {% for e in form.email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="mb-3">
+                {{ form.password.label(class="form-label") }}
+                {{ form.password(class="form-control") }}
+              </div>
+              <div class="mb-3 form-check">
+                {{ form.remember(class="form-check-input") }}
+                {{ form.remember.label(class="form-check-label") }}
+              </div>
+              {{ form.submit(class="btn btn-primary w-100") }}
+            </form>
+            <p class="small text-muted mt-3 mb-0">No account? <a href="{{ url_for('auth.signup') }}">Sign up</a></p>
+          </div>
+        </div>
+        <div class="col-lg-7 d-none d-lg-block auth-side-visual">
+          <img
+            src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&amp;fit=crop&amp;w=1400&amp;q=80"
+            alt="Hospital interior"
+            class="w-100 h-100"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer-when-downgrade">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
