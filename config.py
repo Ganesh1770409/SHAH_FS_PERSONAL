@@ -10,6 +10,9 @@ except ImportError:
 
 
 def _database_uri() -> str:
+    # On PaaS (e.g. Render), always set DATABASE_URL to a managed Postgres (or other)
+    # server DB. The default SQLite path is fine locally; on Render's ephemeral disk
+    # it is recreated empty on every deploy if DATABASE_URL is missing.
     uri = os.environ.get("DATABASE_URL")
     if uri:
         if uri.startswith("postgres://"):

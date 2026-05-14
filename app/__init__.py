@@ -1,3 +1,5 @@
+import os
+
 import click
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -11,6 +13,15 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+    if os.environ.get("RENDER") == "true" and not os.environ.get("DATABASE_URL"):
+        uri = app.config.get("SQLALCHEMY_DATABASE_URI") or ""
+        if uri.startswith("sqlite:"):
+            app.logger.error(
+                "Render: DATABASE_URL is not set; using SQLite on the instance disk. "
+                "That file is wiped on redeploy—create a Render PostgreSQL database, "
+                "link it to this Web Service, and redeploy so DATABASE_URL is injected."
+            )
 
     db.init_app(app)
     login_manager.init_app(app)
