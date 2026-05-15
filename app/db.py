@@ -4,30 +4,56 @@ from __future__ import annotations
 import logging
 import re
 from contextlib import contextmanager
-
-logger = logging.getLogger(__name__)
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 import pymysql
 import pymysql.err
-from flask import current_app
+from flask import current_app, g, has_app_context
+
+logger = logging.getLogger(__name__)
 
 _DB_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
-def _utc_now() -> datetime:
-    return datetime.utcnow().replace(microsecond=0)
+def _connect_kwargs() -> dict:
+    return dict(current_app.config["MYSQL_CONN"])
 
 
 @contextmanager
 def get_conn() -> Any:
-    conn = pymysql.connect(**current_app.config["MYSQL_CONN"])
-    try:
-        yield conn
-    finally:
-        conn.close()
+    """Reuse one TCP/TLS connection per Flask app context (each HTTP request has its own context)."""
+    if has_app_context():
+        if "pymysql_conn" not in g:
+            g.pymysql_conn = pymysql.connect(**_connect_kwargs())
+        conn = g.pymysql_conn
+        try:
+            yield conn
+        finally:
+            pass
+    else:
+        conn = pymysql.connect(**_connect_kwargs())
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+
+def close_db_connection(exc: BaseException | None = None) -> None:
+    """Close pooled-per-request connection when the app context ends."""
+    if not has_app_context():
+        return
+    conn = g.pop("pymysql_conn", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _utc_now() -> datetime:
+    return datetime.utcnow().replace(microsecond=0)
 
 
 def ensure_database() -> None:
@@ -101,6 +127,7 @@ def init_db() -> None:
     index_sql = [
         "CREATE INDEX idx_loans_status ON loan_applications (status)",
         "CREATE INDEX idx_loans_created ON loan_applications (created_at)",
+        "CREATE INDEX idx_loans_agent_created ON loan_applications (created_by_id, created_at)",
     ]
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -373,42 +400,44 @@ def loan_counts() -> dict[str, int]:
 
 
 def loan_counts_for_scope(created_by_user_id: int | None) -> dict[str, int]:
+    def _int_count(v: Any) -> int:
+        if v is None:
+            return 0
+        return int(v)
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             if created_by_user_id is None:
-                cur.execute("SELECT COUNT(*) AS c FROM loan_applications")
-                total = int(cur.fetchone()["c"])
-                cur.execute("SELECT COUNT(*) AS c FROM loan_applications WHERE status = 'pending'")
-                pending = int(cur.fetchone()["c"])
                 cur.execute(
-                    "SELECT COUNT(*) AS c FROM loan_applications WHERE status IN ('approved', 'disbursed')"
+                    """
+                    SELECT
+                        COUNT(*) AS total,
+                        SUM(status = 'pending') AS pending,
+                        SUM(status IN ('approved', 'disbursed')) AS approved,
+                        SUM(status = 'repaid') AS repaid
+                    FROM loan_applications
+                    """
                 )
-                approved = int(cur.fetchone()["c"])
-                cur.execute("SELECT COUNT(*) AS c FROM loan_applications WHERE status = 'repaid'")
-                repaid = int(cur.fetchone()["c"])
             else:
-                uid = created_by_user_id
                 cur.execute(
-                    "SELECT COUNT(*) AS c FROM loan_applications WHERE created_by_id = %s",
-                    (uid,),
+                    """
+                    SELECT
+                        COUNT(*) AS total,
+                        SUM(status = 'pending') AS pending,
+                        SUM(status IN ('approved', 'disbursed')) AS approved,
+                        SUM(status = 'repaid') AS repaid
+                    FROM loan_applications
+                    WHERE created_by_id = %s
+                    """,
+                    (created_by_user_id,),
                 )
-                total = int(cur.fetchone()["c"])
-                cur.execute(
-                    "SELECT COUNT(*) AS c FROM loan_applications WHERE created_by_id = %s AND status = 'pending'",
-                    (uid,),
-                )
-                pending = int(cur.fetchone()["c"])
-                cur.execute(
-                    "SELECT COUNT(*) AS c FROM loan_applications WHERE created_by_id = %s AND status IN ('approved', 'disbursed')",
-                    (uid,),
-                )
-                approved = int(cur.fetchone()["c"])
-                cur.execute(
-                    "SELECT COUNT(*) AS c FROM loan_applications WHERE created_by_id = %s AND status = 'repaid'",
-                    (uid,),
-                )
-                repaid = int(cur.fetchone()["c"])
-    return {"total": total, "pending": pending, "approved": approved, "repaid": repaid}
+            row = cur.fetchone()
+    return {
+        "total": _int_count(row["total"]),
+        "pending": _int_count(row["pending"]),
+        "approved": _int_count(row["approved"]),
+        "repaid": _int_count(row["repaid"]),
+    }
 
 
 def loan_recent(limit: int = 8):

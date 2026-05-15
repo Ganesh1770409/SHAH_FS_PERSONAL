@@ -7,7 +7,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config
 from .extensions import login_manager
 from . import models  # noqa: F401 — registers Flask-Login user_loader
-from .db import init_db
+from .db import close_db_connection, init_db
 from .logging_config import setup_logging
 from . import auth, loans, main
 
@@ -36,6 +36,8 @@ def create_app(config_class=Config):
     app.register_blueprint(main.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(loans.bp)
+
+    app.teardown_appcontext(close_db_connection)
 
     with app.app_context():
         init_db()

@@ -51,6 +51,12 @@ def _apply_ssl(kw: dict) -> None:
         kw["ssl"]["check_hostname"] = True
 
 
+def _add_mysql_timeouts(kw: dict) -> None:
+    """Avoid hanging forever on network issues; small impact on perceived latency."""
+    kw["connect_timeout"] = int(os.environ.get("MYSQL_CONNECT_TIMEOUT", "10"))
+    kw["read_timeout"] = int(os.environ.get("MYSQL_READ_TIMEOUT", "60"))
+
+
 def _mysql_connection_kwargs() -> dict:
     """Build PyMySQL connect kwargs. Requires DATABASE_URL (mysql...) or MYSQL_HOST + MYSQL_USER + MYSQL_DATABASE."""
     from pymysql.cursors import DictCursor
@@ -75,6 +81,7 @@ def _mysql_connection_kwargs() -> dict:
             "autocommit": False,
         }
         _apply_ssl(kw)
+        _add_mysql_timeouts(kw)
         return kw
 
     host = os.environ.get("MYSQL_HOST")
@@ -96,6 +103,7 @@ def _mysql_connection_kwargs() -> dict:
         "autocommit": False,
     }
     _apply_ssl(kw)
+    _add_mysql_timeouts(kw)
     return kw
 
 
