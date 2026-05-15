@@ -8,6 +8,7 @@ from config import Config
 from .extensions import login_manager
 from . import models  # noqa: F401 — registers Flask-Login user_loader
 from .db import init_db
+from .logging_config import setup_logging
 from . import auth, loans, main
 
 
@@ -16,9 +17,11 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
+    setup_logging(app)
+
     if os.environ.get("RENDER") == "true":
         app.logger.info(
-            "Render: using MySQL from DATABASE_URL or MYSQL_*; data persists in your MySQL instance."
+            "Render deploy: MySQL from DATABASE_URL or MYSQL_*; view live logs in Render Dashboard → Logs."
         )
 
     login_manager.init_app(app)

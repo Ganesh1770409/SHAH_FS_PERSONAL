@@ -1,13 +1,17 @@
 """Password-reset tokens and outbound email (stdlib SMTP)."""
 from __future__ import annotations
 
+import hashlib
+import logging
 import smtplib
+
+logger = logging.getLogger(__name__)
 from email.message import EmailMessage
 
 from flask import current_app, url_for
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
-from app.db import user_get_by_email
+from app.db import user_get_by_id
 from app.models import User
 
 
@@ -15,8 +19,12 @@ def _serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt="password-reset")
 
 
+def _password_sig(password_hash: str) -> str:
+    return hashlib.sha256(password_hash.encode("utf-8")).hexdigest()[:32]
+
+
 def make_reset_token(user: User) -> str:
-    return _serializer().dumps({"email": user.email, "pwd": user.password_hash})
+    return _serializer().dumps({"uid": user.id, "sig": _password_sig(user.password_hash)})
 
 
 def load_reset_user(token: str) -> User | None:
@@ -27,12 +35,16 @@ def load_reset_user(token: str) -> User | None:
         return None
     if not isinstance(data, dict):
         return None
-    email = data.get("email")
-    pwd = data.get("pwd")
-    if not email or not pwd:
+    uid = data.get("uid")
+    sig = data.get("sig")
+    if uid is None or not sig:
         return None
-    user = user_get_by_email(str(email).lower().strip())
-    if user is None or user.password_hash != pwd:
+    try:
+        user_id = int(uid)
+    except (TypeError, ValueError):
+        return None
+    user = user_get_by_id(user_id)
+    if user is None or _password_sig(user.password_hash) != sig:
         return None
     return user
 
@@ -46,7 +58,12 @@ def reset_password_url(token: str) -> str:
 
 
 def mail_is_configured() -> bool:
-    return bool(current_app.config.get("MAIL_SERVER") and current_app.config.get("MAIL_DEFAULT_SENDER"))
+    return bool(
+        current_app.config.get("MAIL_SERVER")
+        and current_app.config.get("MAIL_DEFAULT_SENDER")
+        and current_app.config.get("MAIL_USERNAME")
+        and current_app.config.get("MAIL_PASSWORD")
+    )
 
 
 def send_password_reset_email(to_email: str, reset_url: str) -> None:
@@ -65,12 +82,15 @@ def send_password_reset_email(to_email: str, reset_url: str) -> None:
 
     port = int(current_app.config.get("MAIL_PORT", 587))
     use_tls = current_app.config.get("MAIL_USE_TLS", True)
-    username = current_app.config.get("MAIL_USERNAME")
-    password = current_app.config.get("MAIL_PASSWORD")
+    username = (current_app.config.get("MAIL_USERNAME") or "").strip()
+    password = (current_app.config.get("MAIL_PASSWORD") or "").strip()
+    timeout = int(current_app.config.get("MAIL_TIMEOUT", 15))
 
-    with smtplib.SMTP(current_app.config["MAIL_SERVER"], port, timeout=30) as smtp:
+    server = current_app.config["MAIL_SERVER"]
+    logger.info("Sending password reset email to=%s via %s:%s", to_email, server, port)
+    with smtplib.SMTP(server, port, timeout=timeout) as smtp:
         if use_tls:
             smtp.starttls()
-        if username and password:
-            smtp.login(username, password)
+        smtp.login(username, password)
         smtp.send_message(msg)
+    logger.info("Password reset email delivered to=%s", to_email)

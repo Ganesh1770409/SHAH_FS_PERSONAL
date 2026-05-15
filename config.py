@@ -114,8 +114,18 @@ class Config:
     PASSWORD_RESET_MAX_AGE = int(os.environ.get("PASSWORD_RESET_MAX_AGE", "3600"))
 
     MAIL_SERVER = os.environ.get("MAIL_SERVER")
-    MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+    _mail_port = (os.environ.get("MAIL_PORT") or "587").strip()
+    MAIL_PORT = int(_mail_port) if _mail_port.isdigit() else 587
     MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() in ("1", "true", "yes")
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER")
+    MAIL_TIMEOUT = int(os.environ.get("MAIL_TIMEOUT", "15"))
+
+    # Logging: stdout on Render (Dashboard → Logs); files under logs/ locally
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    LOG_DIR = os.environ.get("LOG_DIR", "logs")
+    _log_to_file = os.environ.get("LOG_TO_FILE")
+    LOG_TO_FILE = None if _log_to_file is None else _log_to_file.lower() in ("1", "true", "yes")
+    LOG_MAX_BYTES = int(os.environ.get("LOG_MAX_BYTES", str(5 * 1024 * 1024)))
+    LOG_BACKUP_COUNT = int(os.environ.get("LOG_BACKUP_COUNT", "5"))

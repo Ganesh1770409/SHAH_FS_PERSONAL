@@ -1,8 +1,11 @@
 """MySQL persistence via PyMySQL (raw SQL, no ORM)."""
 from __future__ import annotations
 
+import logging
 import re
 from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -43,11 +46,13 @@ def ensure_database() -> None:
                 "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
             )
         conn.commit()
+        logger.info("Database ensured: %s", db_name)
     finally:
         conn.close()
 
 
 def init_db() -> None:
+    logger.debug("Initializing database schema")
     ensure_database()
     ddl = [
         """
