@@ -69,10 +69,13 @@ def forgot_password():
         logger.info("Password reset requested for email=%s found=%s", email, user is not None)
         if user is not None:
             if not mail_is_configured():
-                logger.error(
-                    "Mail not configured: set MAIL_SERVER, MAIL_USERNAME, "
-                    "MAIL_PASSWORD, and MAIL_DEFAULT_SENDER"
+                logger.error("Mail not configured: RESEND_API_KEY and MAIL_DEFAULT_SENDER required on Render")
+                flash(
+                    "Password reset email is not configured. Add RESEND_API_KEY on Render "
+                    "(from resend.com), redeploy, then try again.",
+                    "danger",
                 )
+                return render_template("auth/forgot_password.html", form=form)
             else:
                 try:
                     token = make_reset_token(user)
@@ -82,8 +85,8 @@ def forgot_password():
                 except Exception:
                     logger.exception("Failed to send password reset email to %s", email)
                     flash(
-                        "We could not send the reset email. If you use Gmail, set MAIL_PASSWORD "
-                        "to a Google App Password (not your normal Gmail password).",
+                        "We could not send the reset email. On Render, add RESEND_API_KEY from "
+                        "resend.com (Gmail SMTP does not work there). Redeploy after saving env vars.",
                         "danger",
                     )
                     return render_template("auth/forgot_password.html", form=form)

@@ -113,13 +113,26 @@ class Config:
     APP_BASE_URL = (os.environ.get("APP_BASE_URL") or "").strip().rstrip("/")
     PASSWORD_RESET_MAX_AGE = int(os.environ.get("PASSWORD_RESET_MAX_AGE", "3600"))
 
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER")
+    _on_render = os.environ.get("RENDER") == "true"
+    _mail_provider = os.environ.get("MAIL_PROVIDER")
+    if _on_render:
+        # Render blocks SMTP (port 587); password reset must use Resend HTTPS API.
+        MAIL_PROVIDER = "resend"
+    elif _mail_provider:
+        MAIL_PROVIDER = _mail_provider.lower().strip()
+    elif RESEND_API_KEY:
+        MAIL_PROVIDER = "resend"
+    else:
+        MAIL_PROVIDER = "smtp"
+
     MAIL_SERVER = os.environ.get("MAIL_SERVER")
     _mail_port = (os.environ.get("MAIL_PORT") or "587").strip()
     MAIL_PORT = int(_mail_port) if _mail_port.isdigit() else 587
     MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() in ("1", "true", "yes")
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
-    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER")
     MAIL_TIMEOUT = int(os.environ.get("MAIL_TIMEOUT", "15"))
 
     # Logging: stdout on Render (Dashboard → Logs); files under logs/ locally

@@ -23,6 +23,13 @@ def create_app(config_class=Config):
         app.logger.info(
             "Render deploy: MySQL from DATABASE_URL or MYSQL_*; view live logs in Render Dashboard → Logs."
         )
+        if not (app.config.get("RESEND_API_KEY") or "").strip():
+            app.logger.warning(
+                "Password reset email disabled on Render until RESEND_API_KEY is set "
+                "(https://resend.com). SMTP port 587 is blocked."
+            )
+        else:
+            app.logger.info("Password reset email: Resend API (MAIL_PROVIDER=resend)")
 
     login_manager.init_app(app)
 
