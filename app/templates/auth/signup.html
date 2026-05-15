@@ -12,6 +12,11 @@
             <p class="text-secondary small mb-4">For your lending team. The first account becomes <strong>admin</strong>; additional signups are <strong>agents</strong> (submit applications). Promote a user to <strong>lender</strong> in the database when they should approve requests.</p>
             <form method="post">
               {{ form.hidden_tag() }}
+              {% if duplicate_email %}
+              <div class="alert alert-warning shadow-sm" role="alert">
+                <strong>Account already exists.</strong> This email is registered. Please <a href="{{ url_for('auth.login') }}" class="alert-link">sign in</a> or <a href="{{ url_for('auth.forgot_password') }}" class="alert-link">reset your password</a>.
+              </div>
+              {% endif %}
               {% if form.csrf_token.errors %}
               <div class="alert alert-danger small" role="alert">
                 {% for e in form.csrf_token.errors %}<div>{{ e }}</div>{% endfor %}
@@ -25,7 +30,7 @@
               </div>
               <div class="mb-3">
                 {{ form.email.label(class="form-label") }}
-                {{ form.email(class="form-control") }}
+                {{ form.email(class="form-control is-invalid" if duplicate_email else "form-control") }}
                 {% for e in form.email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
               </div>
               <div class="mb-3">
@@ -34,12 +39,13 @@
               </div>
               <div class="mb-3">
                 {{ form.password.label(class="form-label") }}
-                {{ form.password(class="form-control") }}
+                {{ form.password(class="form-control", autocomplete="new-password") }}
                 {% for e in form.password.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
               </div>
               <div class="mb-3">
                 {{ form.confirm.label(class="form-label") }}
-                {{ form.confirm(class="form-control") }}
+                {{ form.confirm(class="form-control", autocomplete="new-password") }}
+                {% for e in form.confirm.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
               </div>
               {{ form.submit(class="btn btn-primary w-100") }}
             </form>

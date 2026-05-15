@@ -4,7 +4,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import generate_password_hash
 
-from app.db import user_count, user_create, user_get_by_email, user_get_by_id, user_set_password_hash
+from app.db import user_count, user_create, user_email_exists, user_get_by_email, user_get_by_id, user_set_password_hash
 
 logger = logging.getLogger(__name__)
 from app.forms import ForgotPasswordForm, LoginForm, ResetPasswordForm, SignupForm
@@ -33,11 +33,27 @@ def signup():
         phone = (form.phone.data or "").strip() or None
         password_hash = generate_password_hash(form.password.data)
         new_id = user_create(email, password_hash, full_name, phone, role)
-        login_user(user_get_by_id(new_id))
+        user = user_get_by_id(new_id)
+        if user is None:
+            logger.error("Signup created user id=%s but user_get_by_id returned None", new_id)
+            flash("Account was created but sign-in failed. Try logging in manually.", "warning")
+            return redirect(url_for("auth.login"))
+        login_user(user, remember=False)
         logger.info("Signup success user_id=%s email=%s role=%s", new_id, email, role)
         flash("Your account is ready. Welcome.", "success")
         return redirect(url_for("main.dashboard"))
-    return render_template("auth/signup.html", form=form)
+    duplicate_email = False
+    if request.method == "POST":
+        raw_email = (form.email.data or "").strip().lower()
+        duplicate_email = bool(raw_email and user_email_exists(raw_email))
+        if duplicate_email:
+            flash(
+                "An account with this email already exists. Please sign in or use Forgot password.",
+                "warning",
+            )
+        elif form.errors:
+            flash("Please fix the errors below.", "danger")
+    return render_template("auth/signup.html", form=form, duplicate_email=duplicate_email)
 
 
 @bp.route("/login", methods=["GET", "POST"])
