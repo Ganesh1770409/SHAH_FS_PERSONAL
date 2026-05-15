@@ -1,9 +1,10 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
-from app.extensions import db
+from werkzeug.security import generate_password_hash
+
+from app.db import user_count, user_create, user_get_by_email, user_get_by_id
 from app.forms import LoginForm, SignupForm
-from app.models import User
 
 bp = Blueprint("auth", __name__, url_prefix="")
 
@@ -14,17 +15,13 @@ def signup():
         return redirect(url_for("main.dashboard"))
     form = SignupForm()
     if form.validate_on_submit():
-        user = User(
-            email=form.email.data.lower().strip(),
-            full_name=form.full_name.data.strip(),
-            phone=(form.phone.data or "").strip() or None,
-        )
-        user.set_password(form.password.data)
-        if User.query.count() == 0:
-            user.role = "admin"
-        db.session.add(user)
-        db.session.commit()
-        login_user(user)
+        role = "admin" if user_count() == 0 else "lender"
+        email = form.email.data.lower().strip()
+        full_name = form.full_name.data.strip()
+        phone = (form.phone.data or "").strip() or None
+        password_hash = generate_password_hash(form.password.data)
+        new_id = user_create(email, password_hash, full_name, phone, role)
+        login_user(user_get_by_id(new_id))
         flash("Your account is ready. Welcome.", "success")
         return redirect(url_for("main.dashboard"))
     return render_template("auth/signup.html", form=form)
@@ -36,7 +33,7 @@ def login():
         return redirect(url_for("main.dashboard"))
     form = LoginForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data.lower().strip()).first()
+        user = user_get_by_email(form.email.data.lower().strip())
         if user is None or not user.check_password(form.password.data):
             flash("Invalid email or password.", "danger")
         else:

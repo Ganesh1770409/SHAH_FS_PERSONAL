@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import unquote_plus, urlparse
 
 try:
     from dotenv import load_dotenv
@@ -9,47 +10,101 @@ except ImportError:
     pass
 
 
-def _normalize_database_uri(uri: str) -> str:
-    """Make SQLAlchemy-compatible URIs from common host-provided strings."""
-    uri = uri.strip()
-    if uri.startswith("postgres://"):
-        uri = uri.replace("postgres://", "postgresql://", 1)
-    # Plain mysql:// defaults to PyMySQL driver (pure Python, works on Windows).
-    if uri.startswith("mysql://") and not uri.startswith("mysql+pymysql://"):
-        uri = uri.replace("mysql://", "mysql+pymysql://", 1)
-    return uri
+def _normalize_mysql_url(url: str) -> str:
+    u = url.strip()
+    if u.startswith("mysql+pymysql://"):
+        return "mysql://" + u[len("mysql+pymysql://") :]
+    if u.startswith("mysql://"):
+        return u
+    raise ValueError("DATABASE_URL must start with mysql:// or mysql+pymysql://")
 
 
-def _database_uri() -> str:
-    """
-    Prefer DATABASE_URL (MySQL, PostgreSQL, etc.). If unset, use local SQLite.
-
-    MySQL example:
-      DATABASE_URL=mysql+pymysql://USER:PASS@HOST:3306/DBNAME?charset=utf8mb4
-
-    On PaaS without DATABASE_URL, SQLite lives on ephemeral disk and is wiped on redeploy.
-    """
-    uri = os.environ.get("DATABASE_URL")
-    if uri:
-        return _normalize_database_uri(uri)
-    root = Path(__file__).resolve().parent
-    db_path = (root / "hospital_loans.db").resolve()
-    return "sqlite:///" + db_path.as_posix()
-
-
-def _engine_options(uri: str) -> dict:
-    """Connection pool hints for long-lived servers (especially MySQL idle timeouts)."""
-    if "mysql" in uri.lower():
-        return {"pool_pre_ping": True, "pool_recycle": 280}
-    return {}
+def _resolve_ssl_ca() -> str | None:
+    raw = os.environ.get("MYSQL_SSL_CA")
+    if not raw:
+        return None
+    p = Path(raw).expanduser()
+    if not p.is_absolute():
+        p = Path(__file__).resolve().parent / p
+    p = p.resolve()
+    if not p.is_file():
+        raise ValueError(
+            f"MYSQL_SSL_CA file not found: {p}. "
+            "Download AWS RDS global bundle: "
+            "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
+        )
+    return str(p)
 
 
-_URI = _database_uri()
+def _apply_ssl(kw: dict) -> None:
+    ca = _resolve_ssl_ca()
+    if not ca:
+        return
+    verify_identity = os.environ.get("MYSQL_SSL_VERIFY_IDENTITY", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    kw["ssl"] = {"ca": ca}
+    if verify_identity:
+        # Same intent as mysql CLI --ssl-mode=VERIFY_IDENTITY
+        kw["ssl"]["check_hostname"] = True
+
+
+def _mysql_connection_kwargs() -> dict:
+    """Build PyMySQL connect kwargs. Requires DATABASE_URL (mysql...) or MYSQL_HOST + MYSQL_USER + MYSQL_DATABASE."""
+    from pymysql.cursors import DictCursor
+
+    url = os.environ.get("DATABASE_URL") or os.environ.get("MYSQL_URL")
+    if url:
+        p = urlparse(_normalize_mysql_url(url))
+        if not p.hostname:
+            raise ValueError("MySQL URL is missing host")
+        path = (p.path or "").lstrip("/")
+        if not path:
+            raise ValueError("MySQL URL is missing database name (path)")
+        database = path.split("?")[0]
+        kw: dict = {
+            "host": p.hostname,
+            "port": p.port or 3306,
+            "user": unquote_plus(p.username or ""),
+            "password": unquote_plus(p.password or ""),
+            "database": database,
+            "charset": "utf8mb4",
+            "cursorclass": DictCursor,
+            "autocommit": False,
+        }
+        _apply_ssl(kw)
+        return kw
+
+    host = os.environ.get("MYSQL_HOST")
+    user = os.environ.get("MYSQL_USER")
+    database = os.environ.get("MYSQL_DATABASE")
+    if not host or not user or not database:
+        raise ValueError(
+            "MySQL configuration required: set DATABASE_URL (e.g. mysql+pymysql://user:pass@host:3306/dbname) "
+            "or MYSQL_HOST, MYSQL_USER, MYSQL_DATABASE (and optional MYSQL_PASSWORD, MYSQL_PORT)."
+        )
+    kw = {
+        "host": host,
+        "port": int(os.environ.get("MYSQL_PORT", "3306")),
+        "user": user,
+        "password": os.environ.get("MYSQL_PASSWORD", ""),
+        "database": database,
+        "charset": "utf8mb4",
+        "cursorclass": DictCursor,
+        "autocommit": False,
+    }
+    _apply_ssl(kw)
+    return kw
+
+
+_CONN = _mysql_connection_kwargs()
+MYSQL_HOST_DISPLAY = str(_CONN.get("host") or "")
 
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-change-me-in-production")
-    SQLALCHEMY_DATABASE_URI = _URI
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = _engine_options(_URI)
+    MYSQL_CONN = _CONN
+    MYSQL_HOST_DISPLAY = MYSQL_HOST_DISPLAY
     WTF_CSRF_TIME_LIMIT = int(os.environ.get("WTF_CSRF_TIME_LIMIT", "86400"))

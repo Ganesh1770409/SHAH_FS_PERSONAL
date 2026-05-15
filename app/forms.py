@@ -4,7 +4,7 @@ from flask_wtf import FlaskForm
 from wtforms import BooleanField, DateField, DecimalField, PasswordField, SelectField, StringField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, NumberRange, Optional, ValidationError
 
-from app.models import User
+from app.db import user_email_exists
 
 
 class SignupForm(FlaskForm):
@@ -16,7 +16,7 @@ class SignupForm(FlaskForm):
     submit = SubmitField("Create account")
 
     def validate_email(self, field):
-        if User.query.filter_by(email=field.data.lower().strip()).first():
+        if user_email_exists(field.data.lower().strip()):
             raise ValidationError("An account with this email already exists.")
 
 

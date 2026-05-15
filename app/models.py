@@ -1,22 +1,75 @@
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal
+
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.extensions import db, login_manager
+from app.extensions import login_manager
 
 
-class User(UserMixin, db.Model):
-    __tablename__ = "users"
+def _coerce_datetime(v) -> datetime:
+    if isinstance(v, datetime):
+        return v.replace(tzinfo=None) if v.tzinfo else v
+    if isinstance(v, str):
+        s = v.strip().replace(" ", "T", 1)
+        return datetime.fromisoformat(s[:26].split("+")[0])
+    raise TypeError(f"expected datetime-like value, got {type(v)!r}")
 
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(256), nullable=False)
-    full_name = db.Column(db.String(120), nullable=False)
-    phone = db.Column(db.String(32))
-    role = db.Column(db.String(20), nullable=False, default="lender")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    loan_applications = db.relationship("LoanApplication", backref="created_by_user", lazy="dynamic")
+def _coerce_money(v) -> Decimal | None:
+    if v is None:
+        return None
+    if isinstance(v, Decimal):
+        return v
+    return Decimal(str(v))
+
+
+def _coerce_money_nonnull(v) -> Decimal:
+    x = _coerce_money(v)
+    return x if x is not None else Decimal("0")
+
+
+def _coerce_date(v) -> date:
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    return date.fromisoformat(str(v)[:10])
+
+
+class User(UserMixin):
+    __slots__ = ("id", "email", "password_hash", "full_name", "phone", "role", "created_at")
+
+    def __init__(
+        self,
+        id: int,
+        email: str,
+        password_hash: str,
+        full_name: str,
+        phone: str | None,
+        role: str,
+        created_at: datetime,
+    ):
+        self.id = id
+        self.email = email
+        self.password_hash = password_hash
+        self.full_name = full_name
+        self.phone = phone
+        self.role = role
+        self.created_at = created_at
+
+    @classmethod
+    def from_row(cls, row) -> "User":
+        return cls(
+            id=row["id"],
+            email=row["email"],
+            password_hash=row["password_hash"],
+            full_name=row["full_name"],
+            phone=row["phone"],
+            role=row["role"],
+            created_at=_coerce_datetime(row["created_at"]),
+        )
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
@@ -31,36 +84,66 @@ class User(UserMixin, db.Model):
 
 @login_manager.user_loader
 def load_user(user_id: str):
-    return db.session.get(User, int(user_id))
+    from app.db import user_get_by_id
+
+    return user_get_by_id(int(user_id))
 
 
-class LoanApplication(db.Model):
-    __tablename__ = "loan_applications"
+@dataclass
+class Loan:
+    id: int
+    patient_name: str
+    hospital_name: str
+    ward_or_unit: str | None
+    contact_person: str
+    contact_phone: str
+    medical_summary: str
+    amount_requested: Decimal
+    amount_approved: Decimal | None
+    status: str
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
+    created_by_id: int
+    created_by_user: User | None = None
 
-    id = db.Column(db.Integer, primary_key=True)
-    patient_name = db.Column(db.String(120), nullable=False)
-    hospital_name = db.Column(db.String(200), nullable=False)
-    ward_or_unit = db.Column(db.String(120))
-    contact_person = db.Column(db.String(120), nullable=False)
-    contact_phone = db.Column(db.String(32), nullable=False)
-    medical_summary = db.Column(db.Text, nullable=False)
-    amount_requested = db.Column(db.Numeric(12, 2), nullable=False)
-    amount_approved = db.Column(db.Numeric(12, 2))
-    status = db.Column(db.String(20), nullable=False, default="pending")
-    notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    @classmethod
+    def from_row(cls, row) -> "Loan":
+        return cls(
+            id=row["id"],
+            patient_name=row["patient_name"],
+            hospital_name=row["hospital_name"],
+            ward_or_unit=row["ward_or_unit"],
+            contact_person=row["contact_person"],
+            contact_phone=row["contact_phone"],
+            medical_summary=row["medical_summary"],
+            amount_requested=_coerce_money_nonnull(row["amount_requested"]),
+            amount_approved=_coerce_money(row["amount_approved"]),
+            status=row["status"],
+            notes=row["notes"],
+            created_at=_coerce_datetime(row["created_at"]),
+            updated_at=_coerce_datetime(row["updated_at"]),
+            created_by_id=row["created_by_id"],
+            created_by_user=None,
+        )
 
-    repayments = db.relationship("Repayment", backref="loan", lazy="dynamic", cascade="all, delete-orphan")
 
+@dataclass
+class Repayment:
+    id: int
+    loan_id: int
+    amount: Decimal
+    paid_on: date
+    recorded_at: datetime
+    remark: str | None
 
-class Repayment(db.Model):
-    __tablename__ = "repayments"
-
-    id = db.Column(db.Integer, primary_key=True)
-    loan_id = db.Column(db.Integer, db.ForeignKey("loan_applications.id"), nullable=False)
-    amount = db.Column(db.Numeric(12, 2), nullable=False)
-    paid_on = db.Column(db.Date, nullable=False)
-    recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
-    remark = db.Column(db.String(255))
+    @classmethod
+    def from_row(cls, row) -> "Repayment":
+        return cls(
+            id=row["id"],
+            loan_id=row["loan_id"],
+            amount=_coerce_money_nonnull(row["amount"]),
+            paid_on=_coerce_date(row["paid_on"]),
+            recorded_at=_coerce_datetime(row["recorded_at"]),
+            remark=row["remark"],
+        )

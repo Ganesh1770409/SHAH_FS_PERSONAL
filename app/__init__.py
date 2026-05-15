@@ -5,7 +5,9 @@ from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import Config
-from .extensions import db, login_manager
+from .extensions import login_manager
+from . import models  # noqa: F401 — registers Flask-Login user_loader
+from .db import init_db
 from . import auth, loans, main
 
 
@@ -14,16 +16,11 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-    if os.environ.get("RENDER") == "true" and not os.environ.get("DATABASE_URL"):
-        uri = app.config.get("SQLALCHEMY_DATABASE_URI") or ""
-        if uri.startswith("sqlite:"):
-            app.logger.error(
-                "Render: DATABASE_URL is not set; using SQLite on the instance disk. "
-                "That file is wiped on redeploy—add a managed database (e.g. MySQL or "
-                "PostgreSQL), set DATABASE_URL on this Web Service, and redeploy."
-            )
+    if os.environ.get("RENDER") == "true":
+        app.logger.info(
+            "Render: using MySQL from DATABASE_URL or MYSQL_*; data persists in your MySQL instance."
+        )
 
-    db.init_app(app)
     login_manager.init_app(app)
 
     app.register_blueprint(main.bp)
@@ -31,14 +28,17 @@ def create_app(config_class=Config):
     app.register_blueprint(loans.bp)
 
     with app.app_context():
-        db.create_all()
+        init_db()
+        from .db import verify_connection
+
+        host, database = verify_connection()
+        app.logger.info("MySQL ready: host=%s database=%s (users, loan_applications, repayments)", host, database)
 
     @app.cli.command("list-users")
     def list_users_command() -> None:
-        """Print users in the connected database (id, email, role)."""
-        from .models import User
+        from app.db import user_list_by_created_desc
 
-        users = User.query.order_by(User.id).all()
+        users = user_list_by_created_desc()
         if not users:
             click.echo("No users in this database.")
             return
@@ -54,19 +54,18 @@ def create_app(config_class=Config):
         help="New password. If omitted, you are prompted (safer on a shared screen).",
     )
     def set_password_command(email: str, password: str | None) -> None:
-        """Set a user's password by email (e.g. Render Shell if cloud DB has no matching account)."""
-        from .extensions import db
-        from .models import User
+        from werkzeug.security import generate_password_hash
+
+        from app.db import user_get_by_email, user_set_password_hash
 
         em = email.lower().strip()
-        user = User.query.filter_by(email=em).first()
+        user = user_get_by_email(em)
         if user is None:
             click.echo(f"No user with email {em!r}. Run list-users to see accounts.", err=True)
             raise SystemExit(1)
         if not password:
             password = click.prompt("New password", hide_input=True, confirmation_prompt=True)
-        user.set_password(password)
-        db.session.commit()
+        user_set_password_hash(user.id, generate_password_hash(password))
         click.echo(f"Password updated for {em}.")
 
     return app
