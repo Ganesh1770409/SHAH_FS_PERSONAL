@@ -23,7 +23,10 @@
                 {% for e in form.email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
               </div>
               <div class="mb-3">
-                {{ form.password.label(class="form-label") }}
+                <div class="d-flex justify-content-between align-items-center">
+                  {{ form.password.label(class="form-label mb-0") }}
+                  <a href="{{ url_for('auth.forgot_password') }}" class="small">Forgot password?</a>
+                </div>
                 {{ form.password(class="form-control") }}
                 {% for e in form.password.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
               </div>

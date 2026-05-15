@@ -108,3 +108,14 @@ class Config:
     MYSQL_CONN = _CONN
     MYSQL_HOST_DISPLAY = MYSQL_HOST_DISPLAY
     WTF_CSRF_TIME_LIMIT = int(os.environ.get("WTF_CSRF_TIME_LIMIT", "86400"))
+
+    # Public site URL for password-reset links (optional; url_for _external=True if unset)
+    APP_BASE_URL = (os.environ.get("APP_BASE_URL") or "").strip().rstrip("/")
+    PASSWORD_RESET_MAX_AGE = int(os.environ.get("PASSWORD_RESET_MAX_AGE", "3600"))
+
+    MAIL_SERVER = os.environ.get("MAIL_SERVER")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() in ("1", "true", "yes")
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER")

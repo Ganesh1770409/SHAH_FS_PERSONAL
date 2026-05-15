@@ -1,10 +1,17 @@
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from werkzeug.security import generate_password_hash
 
-from app.db import user_count, user_create, user_get_by_email, user_get_by_id
-from app.forms import LoginForm, SignupForm
+from app.db import user_count, user_create, user_get_by_email, user_get_by_id, user_set_password_hash
+from app.forms import ForgotPasswordForm, LoginForm, ResetPasswordForm, SignupForm
+from app.password_reset import (
+    load_reset_user,
+    mail_is_configured,
+    make_reset_token,
+    reset_password_url,
+    send_password_reset_email,
+)
 
 bp = Blueprint("auth", __name__, url_prefix="")
 
@@ -43,6 +50,55 @@ def login():
                 return redirect(next_url)
             return redirect(url_for("main.dashboard"))
     return render_template("auth/login.html", form=form)
+
+
+@bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for("main.dashboard"))
+    form = ForgotPasswordForm()
+    if form.validate_on_submit():
+        email = form.email.data.lower().strip()
+        user = user_get_by_email(email)
+        if user is not None:
+            if not mail_is_configured():
+                current_app.logger.error(
+                    "Password reset requested but MAIL_SERVER / MAIL_DEFAULT_SENDER are not set."
+                )
+            else:
+                token = make_reset_token(user)
+                reset_url = reset_password_url(token)
+                try:
+                    send_password_reset_email(user.email, reset_url)
+                except Exception:
+                    current_app.logger.exception("Failed to send password reset email to %s", email)
+                    flash(
+                        "We could not send the reset email. Try again later or contact support.",
+                        "danger",
+                    )
+                    return render_template("auth/forgot_password.html", form=form)
+        flash(
+            "If an account exists for that email, you will receive a password reset link shortly.",
+            "info",
+        )
+        return redirect(url_for("auth.login"))
+    return render_template("auth/forgot_password.html", form=form)
+
+
+@bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token: str):
+    if current_user.is_authenticated:
+        return redirect(url_for("main.dashboard"))
+    user = load_reset_user(token)
+    if user is None:
+        flash("This reset link is invalid or has expired. Request a new one.", "danger")
+        return redirect(url_for("auth.forgot_password"))
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        user_set_password_hash(user.id, generate_password_hash(form.password.data))
+        flash("Your password has been updated. You can sign in now.", "success")
+        return redirect(url_for("auth.login"))
+    return render_template("auth/reset_password.html", form=form)
 
 
 @bp.route("/logout")

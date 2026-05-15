@@ -27,6 +27,20 @@ class LoginForm(FlaskForm):
     submit = SubmitField("Sign in")
 
 
+class ForgotPasswordForm(FlaskForm):
+    email = StringField("Email", validators=[DataRequired(), Email(), Length(max=120)])
+    submit = SubmitField("Send reset link")
+
+
+class ResetPasswordForm(FlaskForm):
+    password = PasswordField("New password", validators=[DataRequired(), Length(min=8, max=128)])
+    confirm = PasswordField(
+        "Confirm new password",
+        validators=[DataRequired(), EqualTo("password", message="Passwords must match.")],
+    )
+    submit = SubmitField("Update password")
+
+
 class LoanApplicationForm(FlaskForm):
     patient_name = StringField("Patient name", validators=[DataRequired(), Length(max=120)])
     hospital_name = StringField("Hospital / facility", validators=[DataRequired(), Length(max=200)])
