@@ -35,8 +35,15 @@ class SignupForm(FlaskForm):
 
     def validate_email(self, field):
         _validate_email_at_and_com(field)
-        if user_email_exists(field.data.lower().strip()):
-            raise ValidationError("An account with this email already exists.")
+
+    def validate(self, extra_validators=None):
+        """Password/confirm and other field rules run first; duplicate email is checked last."""
+        if not super().validate(extra_validators):
+            return False
+        if user_email_exists(self.email.data.lower().strip()):
+            self.email.errors.append("An account with this email already exists.")
+            return False
+        return True
 
 
 class LoginForm(FlaskForm):

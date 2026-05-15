@@ -45,7 +45,11 @@ def signup():
     duplicate_email = False
     if request.method == "POST":
         raw_email = (form.email.data or "").strip().lower()
-        duplicate_email = bool(raw_email and user_email_exists(raw_email))
+        p1 = form.password.data or ""
+        p2 = form.confirm.data or ""
+        passwords_match = p1 == p2 and p1 != ""
+        # Only show "already registered" UI after passwords match (avoid mixing with password errors)
+        duplicate_email = bool(raw_email and passwords_match and user_email_exists(raw_email))
         if duplicate_email:
             flash(
                 "An account with this email already exists. Please sign in or use Forgot password.",
