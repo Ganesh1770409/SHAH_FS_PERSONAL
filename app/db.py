@@ -1,6 +1,7 @@
 """MySQL persistence via PyMySQL (raw SQL, no ORM)."""
 from __future__ import annotations
 
+import re
 from contextlib import contextmanager
 from datetime import date, datetime
 from decimal import Decimal
@@ -9,6 +10,8 @@ from typing import Any
 import pymysql
 import pymysql.err
 from flask import current_app
+
+_DB_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
 def _utc_now() -> datetime:
@@ -24,7 +27,28 @@ def get_conn() -> Any:
         conn.close()
 
 
+def ensure_database() -> None:
+    """Create MYSQL_DATABASE / DATABASE_URL path if missing (avoids MySQL 1049 on first deploy)."""
+    cfg = dict(current_app.config["MYSQL_CONN"])
+    db_name = cfg.pop("database", None)
+    if not db_name:
+        return
+    if not _DB_NAME_RE.fullmatch(db_name):
+        raise ValueError(f"Invalid MySQL database name: {db_name!r}")
+    conn = pymysql.connect(**cfg)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"CREATE DATABASE IF NOT EXISTS `{db_name}` "
+                "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def init_db() -> None:
+    ensure_database()
     ddl = [
         """
         CREATE TABLE IF NOT EXISTS users (
