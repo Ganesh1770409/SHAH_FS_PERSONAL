@@ -9,6 +9,7 @@ from app.db import user_count, user_create, user_get_by_email, user_get_by_id, u
 logger = logging.getLogger(__name__)
 from app.forms import ForgotPasswordForm, LoginForm, ResetPasswordForm, SignupForm
 from app.password_reset import (
+    MailDeliveryError,
     load_reset_user,
     mail_is_configured,
     make_reset_token,
@@ -82,11 +83,14 @@ def forgot_password():
                     reset_url = reset_password_url(token)
                     send_password_reset_email(user.email, reset_url)
                     logger.info("Password reset email sent user_id=%s email=%s", user.id, email)
+                except MailDeliveryError as exc:
+                    logger.warning("Password reset mail failed for %s: %s", email, exc)
+                    flash(exc.user_message, "danger")
+                    return render_template("auth/forgot_password.html", form=form)
                 except Exception:
                     logger.exception("Failed to send password reset email to %s", email)
                     flash(
-                        "We could not send the reset email. On Render, add RESEND_API_KEY from "
-                        "resend.com (Gmail SMTP does not work there). Redeploy after saving env vars.",
+                        "We could not send the reset email. Check RESEND_API_KEY on Render and redeploy.",
                         "danger",
                     )
                     return render_template("auth/forgot_password.html", form=form)

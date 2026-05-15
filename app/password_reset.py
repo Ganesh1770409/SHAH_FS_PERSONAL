@@ -21,6 +21,38 @@ logger = logging.getLogger(__name__)
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
+class MailDeliveryError(Exception):
+    """Raised when outbound email fails; user_message is safe to show in the UI."""
+
+    def __init__(self, user_message: str, *, log_detail: str = "") -> None:
+        self.user_message = user_message
+        super().__init__(log_detail or user_message)
+
+
+def _resend_user_message(status_code: int, detail: str) -> str:
+    message = detail
+    try:
+        payload = json.loads(detail)
+        if isinstance(payload, dict):
+            message = str(payload.get("message") or payload.get("error") or detail)
+    except json.JSONDecodeError:
+        pass
+
+    lower = message.lower()
+    if status_code == 403 and "1010" in detail:
+        return "Email service blocked the request. Redeploy the latest app version and try again."
+    if "only send testing emails" in lower or "verify a domain" in lower:
+        return (
+            "Resend test mode: you can only send to the email address on your Resend account. "
+            "Sign up with that email, or verify a domain at resend.com and update MAIL_DEFAULT_SENDER."
+        )
+    if status_code in (401, 403):
+        return "Invalid Resend API key. Set RESEND_API_KEY on Render (Environment) and redeploy."
+    if message and message != detail:
+        return f"Email could not be sent: {message}"
+    return "We could not send the reset email. Check Render logs for details."
+
+
 def _serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt="password-reset")
 
@@ -105,6 +137,9 @@ def _send_via_resend(to_email: str, subject: str, body: str) -> None:
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            # Required by Resend; urllib omits User-Agent (403 / error 1010 without it).
+            "User-Agent": "shah-fs-personal/1.0 (password-reset)",
         },
     )
     timeout = int(current_app.config.get("MAIL_TIMEOUT", 15))
@@ -112,10 +147,22 @@ def _send_via_resend(to_email: str, subject: str, body: str) -> None:
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if resp.status >= 400:
-                raise RuntimeError(f"Resend API returned HTTP {resp.status}")
+                body = resp.read().decode("utf-8", errors="replace")[:500]
+                raise MailDeliveryError(
+                    _resend_user_message(resp.status, body),
+                    log_detail=f"Resend HTTP {resp.status}: {body}",
+                )
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"Resend API error {e.code}: {detail}") from e
+        raise MailDeliveryError(
+            _resend_user_message(e.code, detail),
+            log_detail=f"Resend HTTP {e.code}: {detail}",
+        ) from e
+    except urllib.error.URLError as e:
+        raise MailDeliveryError(
+            "Could not reach the email service. Try again in a few minutes.",
+            log_detail=f"Resend connection error: {e}",
+        ) from e
     logger.info("Password reset email sent via Resend to=%s", to_email)
 
 
