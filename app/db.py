@@ -209,6 +209,30 @@ def user_set_password_hash(user_id: int, password_hash: str) -> None:
         conn.commit()
 
 
+ROLE_AGENT = "agent"
+ROLE_LENDER = "lender"
+ROLE_ADMIN = "admin"
+_VALID_ROLES = frozenset({ROLE_AGENT, ROLE_LENDER, ROLE_ADMIN})
+
+
+def user_count_by_role(role: str) -> int:
+    if role not in _VALID_ROLES:
+        raise ValueError("Invalid role")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS c FROM users WHERE role = %s", (role,))
+            return int(cur.fetchone()["c"])
+
+
+def user_set_role(user_id: int, role: str) -> None:
+    if role not in _VALID_ROLES:
+        raise ValueError(f"Invalid role: {role!r}")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET role = %s WHERE id = %s", (role, user_id))
+        conn.commit()
+
+
 def loan_insert(
     *,
     patient_name: str,
@@ -266,17 +290,27 @@ def loan_get(loan_id: int):
 
 
 def loan_list_all_ordered(status: str | None = None):
+    return loan_list_for_scope(None, status)
+
+
+def loan_list_for_scope(created_by_user_id: int | None, status: str | None = None):
     from app.models import Loan
 
     with get_conn() as conn:
         with conn.cursor() as cur:
+            clauses: list[str] = []
+            args: list[Any] = []
+            if created_by_user_id is not None:
+                clauses.append("created_by_id = %s")
+                args.append(created_by_user_id)
             if status in ("pending", "approved", "disbursed", "repaid", "rejected"):
-                cur.execute(
-                    "SELECT * FROM loan_applications WHERE status = %s ORDER BY created_at DESC",
-                    (status,),
-                )
-            else:
-                cur.execute("SELECT * FROM loan_applications ORDER BY created_at DESC")
+                clauses.append("status = %s")
+                args.append(status)
+            where = " WHERE " + " AND ".join(clauses) if clauses else ""
+            cur.execute(
+                f"SELECT * FROM loan_applications{where} ORDER BY created_at DESC",
+                tuple(args),
+            )
             rows = cur.fetchall()
     return [Loan.from_row(r) for r in rows]
 
@@ -335,29 +369,71 @@ def repayment_add(loan_id: int, amount: Decimal, paid_on: date, remark: str | No
 
 
 def loan_counts() -> dict[str, int]:
+    return loan_counts_for_scope(None)
+
+
+def loan_counts_for_scope(created_by_user_id: int | None) -> dict[str, int]:
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) AS c FROM loan_applications")
-            total = int(cur.fetchone()["c"])
-            cur.execute("SELECT COUNT(*) AS c FROM loan_applications WHERE status = 'pending'")
-            pending = int(cur.fetchone()["c"])
-            cur.execute(
-                "SELECT COUNT(*) AS c FROM loan_applications WHERE status IN ('approved', 'disbursed')"
-            )
-            approved = int(cur.fetchone()["c"])
-            cur.execute("SELECT COUNT(*) AS c FROM loan_applications WHERE status = 'repaid'")
-            repaid = int(cur.fetchone()["c"])
+            if created_by_user_id is None:
+                cur.execute("SELECT COUNT(*) AS c FROM loan_applications")
+                total = int(cur.fetchone()["c"])
+                cur.execute("SELECT COUNT(*) AS c FROM loan_applications WHERE status = 'pending'")
+                pending = int(cur.fetchone()["c"])
+                cur.execute(
+                    "SELECT COUNT(*) AS c FROM loan_applications WHERE status IN ('approved', 'disbursed')"
+                )
+                approved = int(cur.fetchone()["c"])
+                cur.execute("SELECT COUNT(*) AS c FROM loan_applications WHERE status = 'repaid'")
+                repaid = int(cur.fetchone()["c"])
+            else:
+                uid = created_by_user_id
+                cur.execute(
+                    "SELECT COUNT(*) AS c FROM loan_applications WHERE created_by_id = %s",
+                    (uid,),
+                )
+                total = int(cur.fetchone()["c"])
+                cur.execute(
+                    "SELECT COUNT(*) AS c FROM loan_applications WHERE created_by_id = %s AND status = 'pending'",
+                    (uid,),
+                )
+                pending = int(cur.fetchone()["c"])
+                cur.execute(
+                    "SELECT COUNT(*) AS c FROM loan_applications WHERE created_by_id = %s AND status IN ('approved', 'disbursed')",
+                    (uid,),
+                )
+                approved = int(cur.fetchone()["c"])
+                cur.execute(
+                    "SELECT COUNT(*) AS c FROM loan_applications WHERE created_by_id = %s AND status = 'repaid'",
+                    (uid,),
+                )
+                repaid = int(cur.fetchone()["c"])
     return {"total": total, "pending": pending, "approved": approved, "repaid": repaid}
 
 
 def loan_recent(limit: int = 8):
+    return loan_recent_for_scope(None, limit)
+
+
+def loan_recent_for_scope(created_by_user_id: int | None, limit: int = 8):
     from app.models import Loan
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM loan_applications ORDER BY created_at DESC LIMIT %s",
-                (int(limit),),
-            )
+            if created_by_user_id is None:
+                cur.execute(
+                    "SELECT * FROM loan_applications ORDER BY created_at DESC LIMIT %s",
+                    (int(limit),),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT * FROM loan_applications
+                    WHERE created_by_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (created_by_user_id, int(limit)),
+                )
             rows = cur.fetchall()
     return [Loan.from_row(r) for r in rows]

@@ -7,15 +7,27 @@ from flask_login import current_user, login_required
 from app.db import (
     loan_get,
     loan_insert,
-    loan_list_all_ordered,
-    loan_update_decision,
+    loan_list_for_scope,
     loan_set_status,
+    loan_update_decision,
     repayment_add,
     repayments_for_loan,
 )
 from app.forms import LoanApplicationForm, LoanDecisionForm, RepaymentForm
+from app.roles import (
+    can_decide_loans,
+    can_record_repayments,
+    can_view_loan,
+    require_agent_or_admin,
+    require_lender_or_admin,
+    sees_all_loans,
+)
 
 bp = Blueprint("loans", __name__, url_prefix="/loans")
+
+
+def _list_scope_user_id():
+    return None if sees_all_loans(current_user) else current_user.id
 
 
 @bp.route("/")
@@ -23,12 +35,17 @@ bp = Blueprint("loans", __name__, url_prefix="/loans")
 def list_loans():
     status = request.args.get("status", "").strip()
     st = status if status in ("pending", "approved", "disbursed", "repaid", "rejected") else None
-    loans = loan_list_all_ordered(st)
-    return render_template("loans/list.html", loans=loans, filter_status=status)
+    uid = _list_scope_user_id()
+    loans = loan_list_for_scope(uid, st)
+    return render_template(
+        "loans/list.html",
+        loans=loans,
+        filter_status=status,
+    )
 
 
 @bp.route("/new", methods=["GET", "POST"])
-@login_required
+@require_agent_or_admin
 def new_loan():
     form = LoanApplicationForm()
     if form.validate_on_submit():
@@ -53,12 +70,16 @@ def loan_detail(loan_id: int):
     loan = loan_get(loan_id)
     if loan is None:
         abort(404)
+    if not can_view_loan(current_user, loan):
+        abort(403)
     decision_form = LoanDecisionForm(obj=loan)
     decision_form.status.data = loan.status
     repayment_form = RepaymentForm()
     repayment_form.paid_on.data = date.today()
     repayments = repayments_for_loan(loan_id)
     total_repaid = sum((r.amount for r in repayments), Decimal("0"))
+    can_decide = can_decide_loans(current_user)
+    can_repay = can_record_repayments(current_user)
     return render_template(
         "loans/detail.html",
         loan=loan,
@@ -66,15 +87,20 @@ def loan_detail(loan_id: int):
         repayment_form=repayment_form,
         repayments=repayments,
         total_repaid=total_repaid,
+        can_decide=can_decide,
+        can_repay=can_repay,
+        show_internal_notes=can_decide,
     )
 
 
 @bp.route("/<int:loan_id>/decision", methods=["POST"])
-@login_required
+@require_lender_or_admin
 def loan_decision(loan_id: int):
     loan = loan_get(loan_id)
     if loan is None:
         abort(404)
+    if not can_view_loan(current_user, loan):
+        abort(403)
     form = LoanDecisionForm()
     if not form.validate_on_submit():
         for err in form.errors.values():
@@ -93,11 +119,13 @@ def loan_decision(loan_id: int):
 
 
 @bp.route("/<int:loan_id>/repayment", methods=["POST"])
-@login_required
+@require_lender_or_admin
 def add_repayment(loan_id: int):
     loan = loan_get(loan_id)
     if loan is None:
         abort(404)
+    if not can_view_loan(current_user, loan):
+        abort(403)
     form = RepaymentForm()
     if not form.validate_on_submit():
         for err in form.errors.values():

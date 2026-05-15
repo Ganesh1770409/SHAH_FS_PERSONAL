@@ -2,11 +2,18 @@
 {% block title %}Dashboard — SHAH FINANCIAL HEALTH SERVICES{% endblock %}
 {% block content %}
 <h1 class="h3 mb-4">Dashboard</h1>
+{% if agent_scope %}
+<p class="text-secondary small mb-3">You are signed in as an <strong>agent</strong>. You see only applications you submitted.</p>
+{% elif current_user.is_lender %}
+<p class="text-secondary small mb-3">You are signed in as a <strong>lender</strong>. You can review all applications, approve or decline, and record repayments.</p>
+{% elif current_user.is_admin %}
+<p class="text-secondary small mb-3">You are signed in as an <strong>administrator</strong>.</p>
+{% endif %}
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
-        <div class="text-muted small">All cases</div>
+        <div class="text-muted small">{% if agent_scope %}My cases{% else %}All cases{% endif %}</div>
         <div class="fs-3 fw-bold">{{ stats.total }}</div>
       </div>
     </div>
@@ -38,8 +45,10 @@
 </div>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="h5 mb-0">Recent applications</h2>
+  <h2 class="h5 mb-0">{% if agent_scope %}My recent applications{% else %}Recent applications{% endif %}</h2>
+  {% if current_user.is_agent or current_user.is_admin %}
   <a class="btn btn-sm btn-primary" href="{{ url_for('loans.new_loan') }}">New application</a>
+  {% endif %}
 </div>
 <div class="card border-0 shadow-sm">
   <div class="table-responsive">
@@ -63,7 +72,7 @@
           <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('loans.loan_detail', loan_id=loan.id) }}">Open</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="text-center text-muted py-4">No applications yet. <a href="{{ url_for('loans.new_loan') }}">Create the first one</a>.</td></tr>
+        <tr><td colspan="5" class="text-center text-muted py-4">No applications yet. {% if current_user.is_agent or current_user.is_admin %}<a href="{{ url_for('loans.new_loan') }}">Create the first one</a>.{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table>

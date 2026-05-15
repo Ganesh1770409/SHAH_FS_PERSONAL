@@ -31,7 +31,7 @@
         <hr>
         <h2 class="h6 text-muted">Situation</h2>
         <p class="mb-0" style="white-space: pre-wrap;">{{ loan.medical_summary }}</p>
-        {% if loan.notes %}
+        {% if show_internal_notes and loan.notes %}
         <hr>
         <h2 class="h6 text-muted">Internal notes</h2>
         <p class="mb-0 small" style="white-space: pre-wrap;">{{ loan.notes }}</p>
@@ -40,6 +40,7 @@
     </div>
   </div>
   <div class="col-lg-5">
+    {% if can_decide %}
     <div class="card border-0 shadow-sm mb-4">
       <div class="card-body p-4">
         <h2 class="h6 mb-3">Update status</h2>
@@ -61,10 +62,12 @@
         </form>
       </div>
     </div>
+    {% endif %}
     <div class="card border-0 shadow-sm">
       <div class="card-body p-4">
         <h2 class="h6 mb-1">Repayments</h2>
         <p class="small text-muted mb-3">Total recorded: <strong>{{ total_repaid }}</strong></p>
+        {% if can_repay %}
         <form method="post" action="{{ url_for('loans.add_repayment', loan_id=loan.id) }}" class="mb-4">
           {{ repayment_form.hidden_tag() }}
           <div class="mb-2">
@@ -81,6 +84,7 @@
           </div>
           {{ repayment_form.submit(class="btn btn-outline-primary w-100") }}
         </form>
+        {% endif %}
         {% if repayments %}
         <ul class="list-group list-group-flush small">
           {% for r in repayments %}

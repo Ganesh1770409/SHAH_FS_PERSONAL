@@ -41,6 +41,19 @@ class ResetPasswordForm(FlaskForm):
     submit = SubmitField("Update password")
 
 
+class AdminSetRoleForm(FlaskForm):
+    role = SelectField(
+        "Role",
+        choices=[
+            ("agent", "Agent — submit applications"),
+            ("lender", "Lender — review all, approve / repay"),
+            ("admin", "Admin — full access + this screen"),
+        ],
+        validators=[DataRequired()],
+    )
+    submit = SubmitField("Update role")
+
+
 class LoanApplicationForm(FlaskForm):
     patient_name = StringField("Patient name", validators=[DataRequired(), Length(max=120)])
     hospital_name = StringField("Hospital / facility", validators=[DataRequired(), Length(max=200)])

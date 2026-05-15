@@ -81,6 +81,14 @@ class User(UserMixin):
     def is_admin(self) -> bool:
         return self.role == "admin"
 
+    @property
+    def is_lender(self) -> bool:
+        return self.role == "lender"
+
+    @property
+    def is_agent(self) -> bool:
+        return self.role == "agent"
+
 
 @login_manager.user_loader
 def load_user(user_id: str):

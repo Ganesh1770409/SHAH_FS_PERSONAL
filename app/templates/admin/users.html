@@ -4,7 +4,7 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
   <div>
     <h1 class="h4 mb-1">Registered users</h1>
-    <p class="text-secondary small mb-0">Read-only list from the <strong>{{ db_kind }}</strong> database used by this deployment. Passwords are never shown.</p>
+    <p class="text-secondary small mb-0">Manage roles for accounts in the <strong>{{ db_kind }}</strong> database. Passwords are never shown. New signups are <strong>agents</strong> until you change them here.</p>
   </div>
   <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Back to dashboard</a>
 </div>
@@ -20,6 +20,7 @@
             <th scope="col">Name</th>
             <th scope="col">Phone</th>
             <th scope="col">Role</th>
+            <th scope="col" class="text-nowrap">Change role</th>
             <th scope="col">Signed up (UTC)</th>
           </tr>
         </thead>
@@ -30,12 +31,23 @@
             <td>{{ u.email }}</td>
             <td>{{ u.full_name }}</td>
             <td>{{ u.phone or "—" }}</td>
-            <td><span class="badge text-bg-{{ 'primary' if u.role == 'admin' else 'secondary' }}">{{ u.role }}</span></td>
+            <td><span class="badge text-bg-{% if u.role == 'admin' %}primary{% elif u.role == 'lender' %}success{% else %}info{% endif %}">{{ u.role }}</span></td>
+            <td>
+              <form method="post" action="{{ url_for('main.admin_set_user_role', user_id=u.id) }}" class="d-flex flex-wrap gap-2 align-items-center">
+                {{ role_form.hidden_tag() }}
+                <select name="role" class="form-select form-select-sm" style="min-width: 11rem;" aria-label="Role for {{ u.email }}">
+                  <option value="agent" {% if u.role == 'agent' %}selected{% endif %}>Agent</option>
+                  <option value="lender" {% if u.role == 'lender' %}selected{% endif %}>Lender</option>
+                  <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Admin</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Update role</button>
+              </form>
+            </td>
             <td class="small text-muted">{{ u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "—" }}</td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="6" class="text-center text-secondary py-5">No users in this database yet. Use <strong>Sign up</strong> to create the first account (they become admin).</td>
+            <td colspan="7" class="text-center text-secondary py-5">No users in this database yet. Use <strong>Sign up</strong> to create the first account (they become admin).</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -43,4 +55,5 @@
     </div>
   </div>
 </div>
+<p class="small text-muted mt-3 mb-0">You cannot remove the last admin until at least one other user has the admin role.</p>
 {% endblock %}

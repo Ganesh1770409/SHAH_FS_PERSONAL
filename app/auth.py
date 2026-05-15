@@ -26,7 +26,8 @@ def signup():
         return redirect(url_for("main.dashboard"))
     form = SignupForm()
     if form.validate_on_submit():
-        role = "admin" if user_count() == 0 else "lender"
+        # First account is admin; everyone else is an agent (field staff). Promote to lender in DB if needed.
+        role = "admin" if user_count() == 0 else "agent"
         email = form.email.data.lower().strip()
         full_name = form.full_name.data.strip()
         phone = (form.phone.data or "").strip() or None

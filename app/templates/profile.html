@@ -17,7 +17,9 @@
             {{ form.phone.label(class="form-label") }}
             {{ form.phone(class="form-control") }}
           </div>
-          <p class="small text-muted">Signed in as <strong>{{ current_user.email }}</strong>{% if current_user.is_admin %} (admin){% endif %}</p>
+          <p class="small text-muted">Signed in as <strong>{{ current_user.email }}</strong>
+            — <span class="badge text-bg-{% if current_user.role == 'admin' %}primary{% elif current_user.role == 'lender' %}success{% else %}info{% endif %}">{{ current_user.role }}</span>
+          </p>
           {{ form.submit(class="btn btn-primary") }}
         </form>
       </div>
